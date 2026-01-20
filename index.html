@@ -1,0 +1,1056 @@
+<!-- =========================================
+[벤토그리드 고정 쉘] + [주석/삽입 위치 안내]
+- #lego-board 안에는 "카드 div"만 넣기 (script 금지)
+- config/script/sticky-bar는 #lego-board 밖에 두기
+========================================= -->
+ 
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>탬블 마케팅</title>
+ 
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+ 
+  <script>
+	tailwind.config = {
+  	theme: {
+    	extend: {
+      	colors: {
+        	brand: {
+          	primary: '#304FFE',
+          	secondary: '#7C4DFF',
+          	bg: '#f8fafc'
+        	}
+      	},
+      	animation: {
+        	'blob': 'blob 7s infinite',
+        	'fade-in-up': 'fadeInUp 0.8s ease-out forwards'
+      	},
+      	keyframes: {
+        	blob: {
+          	'0%': { transform: 'translate(0px, 0px) scale(1)' },
+          	'33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+          	'66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+          	'100%': { transform: 'translate(0px, 0px) scale(1)' },
+        	},
+        	fadeInUp: {
+          	'0%': { opacity: '0', transform: 'translateY(20px)' },
+          	'100%': { opacity: '1', transform: 'translateY(0)' }
+        	}
+      	}
+    	}
+  	}
+	}
+  </script>
+ 
+<script>
+  (function () {
+	// 1) 원천은 무조건 여기: tailwind.config에 박은 브랜드 컬러
+	const brand =
+      window.tailwind?.config?.theme?.extend?.colors?.brand ||
+  	(typeof tailwind !== "undefined" ? tailwind.config?.theme?.extend?.colors?.brand : null) ||
+  	{ primary: "#1e3a8a", secondary: "#fbbf24" };
+ 
+	function toRgbTriplet(input, fallback) {
+  	const v = String(input || "").trim();
+ 
+  	// rgb(30, 58, 138) / rgba(30, 58, 138, 0.2) 지원
+  	const m = v.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  	if (m) return `${m[1]}, ${m[2]}, ${m[3]}`;
+ 
+  	// hex 지원 (#abc / #aabbcc)
+  	const clean = v.replace("#", "");
+  	const full = clean.length === 3 ? clean.split("").map(c => c + c).join("") : clean;
+  	if (full.length === 6) {
+    	const r = parseInt(full.slice(0, 2), 16);
+    	const g = parseInt(full.slice(2, 4), 16);
+    	const b = parseInt(full.slice(4, 6), 16);
+    	if (![r, g, b].some(Number.isNaN)) return `${r}, ${g}, ${b}`;
+  	}
+ 
+  	return fallback;
+	}
+ 
+	const p = toRgbTriplet(brand.primary, "30, 58, 138");
+	const s = toRgbTriplet(brand.secondary, "251, 191, 36");
+ 
+    document.documentElement.style.setProperty("--brand-primary-rgb", p);
+    document.documentElement.style.setProperty("--brand-secondary-rgb", s);
+  })();
+</script>
+  <style>
+	body { font-family: 'Pretendard', sans-serif; overflow-x: hidden; }
+ 
+	.readable{
+  	line-height:1.75;
+  	letter-spacing:-0.01em;
+  	word-break:keep-all;
+  	overflow-wrap:anywhere;
+	}
+	.readable p + p { margin-top: 0.75rem; }
+ 
+	/* iOS safe area */
+	.safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+ 
+	/* 오로라 배경 */
+.aurora-bg {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  z-index: -1;
+  background: radial-gradient(circle at 50% 50%, rgba(var(--brand-primary-rgb), 0.08), transparent 50%);
+}
+	.aurora-blob {
+  	position: absolute; filter: blur(80px); opacity: 0.22; animation: blob 10s infinite;
+	}
+ 
+	/* 유리 카드 스타일 */
+    .glass-card {
+  	background: rgba(255, 255, 255, 0.72);
+      backdrop-filter: blur(16px);
+  	border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 1.5rem;
+      transition: all 0.3s ease;
+	}
+.glass-card:hover {
+  box-shadow: 0 0 30px -5px rgba(var(--brand-secondary-rgb), 0.20);
+  transform: translateY(-5px);
+}
+	.reveal { animation: fadeInUp 0.8s ease-out forwards; }
+
+/* 카드가 빛을 받을 준비를 함 */
+.spotlight-card {
+    position: relative;
+    overflow: hidden;
+    /* 기존 glass-card 속성 유지하며 추가 */
+    background: rgba(255, 255, 255, 0.6); 
+}
+
+/* 마우스 위치에 따라 빛나는 효과 */
+.spotlight-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    border-radius: inherit;
+    padding: 1.5px; /* 테두리 두께 */
+    background: radial-gradient(
+        800px circle at var(--mouse-x) var(--mouse-y),
+        rgba(var(--brand-secondary-rgb), 0.6),
+        transparent 40%
+    );
+    -webkit-mask: 
+        linear-gradient(#fff 0 0) content-box, 
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s;
+}
+
+/* 카드 내부에 은은한 조명 */
+.spotlight-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(
+        600px circle at var(--mouse-x) var(--mouse-y),
+        rgba(var(--brand-primary-rgb), 0.1),
+        transparent 40%
+    );
+    opacity: 0;
+    z-index: -1;
+    transition: opacity 0.5s;
+}
+
+.spotlight-card:hover::before,
+.spotlight-card:hover::after {
+    opacity: 1;
+}
+
+/* [수정] 프로세스 단계 및 연결선 기본 스타일 (꺼진 상태) */
+    .process-step, .process-connector {
+        opacity: 0.3; /* 평소엔 흐릿함 */
+        transition: all 0.5s ease;
+        transform: translateY(0);
+    }
+    
+    /* 활성화 상태: 선명해짐 */
+    .process-step.active {
+        opacity: 1;
+        transform: translateY(-5px); /* 살짝 위로 뜸 */
+    }
+    .process-connector.active {
+        opacity: 1;
+    }
+
+    /* 연결 점(Dot) 스타일 */
+    .dot {
+        width: 6px;
+        height: 6px;
+        background-color: #cbd5e1; /* 꺼졌을 때: 회색 */
+        border-radius: 50%;
+        margin: 0 4px;
+        display: inline-block;
+        transition: background-color 0.3s;
+    }
+
+    /* 연결선이 활성화되면 점 색상도 변경 + 통통 튀는 효과 */
+    .process-connector.active .dot {
+        background-color: #304FFE; /* 켜졌을 때: 브랜드 컬러 */
+        animation: bounce 1s infinite ease-in-out;
+    }
+    
+    /* 점들이 순차적으로 튀어오르게 딜레이 설정 */
+    .process-connector.active .dot:nth-child(1) { animation-delay: 0s; }
+    .process-connector.active .dot:nth-child(2) { animation-delay: 0.2s; }
+    .process-connector.active .dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-4px); }
+    }
+
+/* [누락된 부분 복구] 테두리 순차 깜빡임 애니메이션 */
+    @keyframes pulse-border {
+        0% { box-shadow: 0 0 0 0px transparent; }
+        50% { box-shadow: 0 0 0 3px #304FFE; } /* 파란색 테두리 */
+        100% { box-shadow: 0 0 0 0px transparent; }
+    }
+
+    /* 기본 상태 */
+    .sequence-card {
+        border: 1px solid rgba(15, 23, 42, 0.08); 
+        transition: all 0.3s ease;
+    }
+
+    /* 활성화 상태 (스크립트가 active 클래스를 붙이면 작동) */
+    .sequence-card.active {
+        border-color: transparent;
+        animation: pulse-border 2s ease-in-out infinite;
+    }
+
+/* [수정] 그래프 성장 애니메이션 (더 묵직하게) */
+    .chart-bar {
+        width: 100%;
+        border-radius: 8px 8px 0 0; /* 둥근 모서리 강화 */
+        transform-origin: bottom;
+        /* 텐션 있는 스프링 효과 적용 */
+        transition: height 0.8s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s; 
+        height: 0; /* 초기 상태 */
+        box-shadow: inset 0 -2px 4px rgba(0,0,0,0.05); /* 입체감 추가 */
+    }
+
+/* [추가] 막대그래프 반짝임 효과 */
+@keyframes shine {
+  0% { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+.shimmer {
+  /* 브랜드 컬러를 유지하며 빛이 지나가는 그라데이션 */
+  background: linear-gradient(
+    60deg,
+    #304FFE 20%,
+    #7C4DFF 40%,
+    #ffffff 50%,
+    #7C4DFF 60%,
+    #304FFE 80%
+  );
+  background-size: 200% auto;
+  animation: shine 2s linear infinite; /* 2초마다 반짝임 */
+}
+
+
+
+  </style>
+</head>
+ 
+<body x-data="{ mobileMenuOpen: false }" class="bg-brand-bg text-slate-900">
+ 
+  <div class="aurora-bg">
+	<div class="aurora-blob bg-brand-primary w-96 h-96 top-0 left-10 rounded-full mix-blend-multiply"></div>
+	<div class="aurora-blob bg-brand-secondary w-96 h-96 bottom-0 right-10 rounded-full mix-blend-multiply"
+         style="animation-delay:2000ms"></div>
+  </div>
+ 
+  <nav class="fixed w-full z-50 top-0 backdrop-blur-md border-b border-black/10 bg-white/70">
+	<div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+  	<div class="text-2xl font-bold tracking-tighter text-slate-900">
+    	TAMBLE<span class="text-brand-secondary"></span>
+      </div>
+  	<div class="flex space-x-8 text-sm font-medium text-slate-600">
+    	<a href="#hero" class="hover:text-brand-secondary">소개</a>
+    	<a href="#form" class="hover:text-brand-secondary">상담 신청</a>
+      </div>
+    </div>
+  </nav>
+ 
+  <!-- ✅ PC에서도 2열이 잘 보이게: max-w-[520px] 고정은 제거하고, max-w-7xl 사용 -->
+  <!-- ✅ 하단 스티키바 때문에 모바일에서 가려지지 않게 pb-28 -->
+  <main class="pt-24 pb-28 px-4 sm:px-6 max-w-7xl mx-auto">
+ 
+ 
+ 
+	<!-- =======================================================
+	[1] CONFIG: 여기만 바꾸면 이미지/링크/전화/카톡/DB URL이 다 바뀜
+	- ⚠️ 이 블록은 #lego-board 안에 넣으면 레이아웃 망가짐 (그리드 아이템이 됨)
+    ======================================================== -->
+<script>
+  window.CONFIG = {
+    // [이미지]
+    images: [
+      { key: 'profile', label: '탬블 대표이사', url: 'https://blogpfthumb-phinf.pstatic.net/MjAyNDA2MDRfMjg4/MDAxNzE3NTA0MDAwMzE1.ZXC8m0iARHSLyxxMSV3dDy1lcJ3SUMsKr_LaKExzt1Ug.482OvKGtrTglvhrYhGRhXn2mWUkXuoWhCP1N4dSwrBkg.PNG/%EC%A0%9C%EB%AA%A9_%EC%B6%94%EA%B0%80.png/%25EC%25A0%259C%25EB%25AA%25A9%2B%25EC%25B6%2594%25EA%25B0%2580.png?type=w3840' },
+      { key: 'activity', label: '고객의 찐후기', url: 'https://postfiles.pstatic.net/MjAyNTAzMjhfMTY3/MDAxNzQzMTU2MzMzMzEx.BbmmFcsGReM-HoRCLQJCefRlCmRz5Fv4ONntkrnpD0gg.JlObfllLcj26yQdLnosBnFMhyCc-4z5C1NA7SKTXZ0Mg.PNG/image.png?type=w580' }
+    ],
+    // [링크]
+    links: [
+      { key: 'youtube', label: '유튜브', url: 'https://youtube.com/@tvabc' },
+      { key: 'blog', label: '블로그', url: 'https://blog.naver.com/XXX' }
+    ],
+    // [연락처]
+    contact: {
+      phone: '01011112222',
+      kakao: 'https://openkakaotalk.com/1234'
+    },
+    // [DB] 구글 앱스 스크립트 (반드시 배포 설정 확인 필요)
+    scriptUrl: 'https://script.google.com/macros/s/AKfycbygQVOtRf0npt2CQsvynv_EXDEZhRVXAkeStZZCQ9BKLaGacc9RsRd0pvt_bVaqxQpbrQ/exec'
+  };
+</script>
+
+ 
+    <!-- =======================================================
+	[2] LEGO BOARD: 여기 안에는 "카드 div"만 붙여넣기 (script 금지)
+	======================================================== -->
+	<div class="grid grid-cols-1 sm:grid-cols-2 gap-5 auto-rows-[minmax(160px,auto)] sm:grid-flow-dense" id="lego-board">
+ 
+<div id="hero" class="anchor-offset sm:col-span-2 glass-card border border-edge hover:border-brand-secondary transition-colors overflow-hidden">
+  <div class="p-6 sm:p-10 flex flex-col gap-6">
+    <div class="readable">
+      <span class="inline-block px-3 py-1 rounded-full bg-soft text-brand-primary text-sm font-bold mb-4">
+        현직 뷰티샵 운영자의 직접 실행 솔루션
+      </span>
+<h1 class="text-3xl sm:text-5xl font-extrabold text-fg leading-tight mb-6">
+  <span class="block mb-3">대행사도 의뢰하는</span>
+  <span class="text-brand-primary">진짜 뷰티 마케팅</span>, 탬블
+</h1>
+
+
+      <p class="text-muted text-lg leading-relaxed mb-6">
+        뷰티샵 구조도 모르면서<br> 마케팅 하는 업체 때문에 <br> 스트레스 받으셨나요?<br><br>
+        매출 구조를 꿰뚫는 <br> 탬블이 직접 실행합니다.<br><br>
+        거품 없는 기술력으로 <br> 뷰티샵 매장 성장을 증명해 드립니다.
+      </p>
+    </div>
+    
+    <div class="flex flex-col sm:flex-row gap-3">
+      <a href="#form" class="w-full sm:w-auto text-center px-6 py-4 rounded-xl bg-brand-primary text-white font-bold text-lg hover:opacity-90 transition-opacity">
+        내 매장 무료 진단받기
+      </a>
+      <a href="#process" class="w-full sm:w-auto text-center px-6 py-4 rounded-xl bg-ghost text-fg border border-edge font-bold text-lg hover:bg-soft transition-colors">
+        마케팅 전략 확인하기
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="sm:col-span-2 glass-card border border-edge hover:border-brand-secondary transition-colors p-6" x-data>
+  <div class="readable mb-4">
+    <h3 class="text-xl font-bold text-fg">탬블 활동 현황</h3>
+  </div>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <template x-for="img in window.CONFIG.images" :key="img.key">
+      <div class="w-full overflow-hidden border border-edge rounded-lg bg-soft">
+        <img :src="img.url" :alt="img.label" class="w-full h-auto object-contain">
+        <div class="p-2 text-center text-sm text-muted bg-surface border-t border-edge" x-text="img.label"></div>
+      </div>
+    </template>
+  </div>
+</div>
+
+<div class="sm:col-span-2 glass-card border border-edge hover:border-brand-secondary transition-colors p-6 sm:p-10 bg-soft">
+  <div class="readable text-center max-w-2xl mx-auto">
+    <h2 class="text-2xl sm:text-3xl font-bold text-fg mb-4">
+      마케팅 비용은 쓰는데,<br>왜 신규 고객은 늘지 않을까요?
+    </h2>
+    <p class="text-muted">
+      많은 원장님들이 겪는 공통적인 고통입니다.<br>
+      혹시 지금 이런 상황이지 않으신가요?
+    </p>
+  </div>
+</div>
+
+<div class="glass-card sequence-card hover:border-brand-secondary transition-colors p-6">
+  <div class="readable">
+    <div class="w-10 h-10 rounded-full bg-input flex items-center justify-center text-xl mb-4">😡</div>
+    <h3 class="text-lg font-bold text-fg mb-2">업종 이해도 부족</h3>
+    <p class="text-muted text-sm">
+      "우리 샵의 시술과 고객 스타일을 전혀 이해 못 해요."<br>
+      공장형 대행사의 뻔한 원고는 고객의 마음을 움직이지 못합니다.
+    </p>
+  </div>
+</div>
+
+<div class="glass-card sequence-card hover:border-brand-secondary transition-colors p-6">
+  <div class="readable">
+    <div class="w-10 h-10 rounded-full bg-input flex items-center justify-center text-xl mb-4">💸</div>
+    <h3 class="text-lg font-bold text-fg mb-2">낮은 가성비</h3>
+    <p class="text-muted text-sm">
+      "비용은 비싼데 피드백은 느리고 효과는 없어요."<br>
+      외주에 외주를 주는 구조로 인해 비용 거품만 잔뜩 끼어있습니다.
+    </p>
+  </div>
+</div>
+
+<div class="sm:col-span-2 glass-card sequence-card hover:border-brand-secondary transition-colors p-6">
+  <div class="readable">
+    <div class="w-10 h-10 rounded-full bg-input flex items-center justify-center text-xl mb-4">📉</div>
+    <h3 class="text-lg font-bold text-fg mb-2">매출 정체</h3>
+    <p class="text-muted text-sm">
+      "광고는 도는데 실제 예약으로 이어지질 않아요."<br>
+      노출만 시키고 전환을 못 만드는 마케팅은 밑 빠진 독에 물 붓기입니다.
+    </p>
+  </div>
+</div>
+
+<div class="sm:col-span-2 glass-card border border-edge hover:border-brand-secondary transition-colors p-6 sm:p-10">
+  <div class="readable">
+    <span class="text-brand-primary font-bold tracking-wider text-sm">WHY TAMBLE?</span>
+    <h2 class="text-2xl sm:text-3xl font-bold text-fg mt-2 mb-6">
+      탬블은 <span class="text-brand-primary">본질</span>이 다릅니다
+    </h2>
+  </div>
+  
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+    <div class="p-5 rounded-xl bg-surface border border-edge">
+      <div class="readable">
+        <h3 class="text-xl font-bold text-fg mb-2">01. 현직 운영자의 인사이트</h3>
+        <p class="text-muted text-sm">
+          팀원이 직접 뷰티샵을 운영합니다. '무엇이 매출을 만드는지' 운영자의 입장에서 정확히 파악하고 전략을 짭니다.
+        </p>
+      </div>
+    </div>
+    <div class="p-5 rounded-xl bg-surface border border-edge">
+      <div class="readable">
+        <h3 class="text-xl font-bold text-fg mb-2">02. 100% 직접 실행 기술력</h3>
+        <p class="text-muted text-sm">
+          외주 대행사가 아닙니다. 네이버, 인스타, 구글 등 핵심 마케팅 기술을 내부 팀이 직접 보유하고 실행합니다.
+        </p>
+      </div>
+    </div>
+    <div class="p-5 rounded-xl bg-surface border border-edge sm:col-span-2">
+      <div class="readable">
+        <h3 class="text-xl font-bold text-fg mb-2">03. 대행사가 찾는 대행사</h3>
+        <p class="text-muted text-sm">
+          업계 관계자들이 인정합니다. 수많은 타 대행사들이 기술적 실행을 의뢰할 정도로 압도적인 원청 기술력을 자랑합니다.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="process" class="anchor-offset sm:col-span-2 glass-card border border-edge hover:border-brand-secondary transition-colors p-6 sm:p-10 bg-soft">
+  <div class="readable mb-10 text-center">
+    <h2 class="text-2xl font-bold text-fg">성공을 만드는 4단계 프로세스</h2>
+    <p class="text-muted mt-2">복잡한 과정 없이, 성과에만 집중합니다.</p>
+  </div>
+  
+  <div class="grid grid-cols-2 gap-x-4 gap-y-10 sm:flex sm:flex-row sm:items-start sm:justify-between relative" id="process-flow">
+    
+    <div class="process-step flex flex-col items-center text-center z-10 w-full">
+      <div class="w-20 h-20 rounded-full bg-white border border-edge flex items-center justify-center text-3xl mb-4 shadow-sm transition-colors">
+        📋
+      </div>
+      <h4 class="font-bold text-lg text-fg mb-1">문의 및 분석</h4>
+      <p class="text-xs text-muted break-keep">문제점과 목표 매출<br>정밀 진단</p>
+    </div>
+
+    <div class="process-connector hidden sm:flex justify-center items-center mt-9">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </div>
+
+    <div class="process-step flex flex-col items-center text-center z-10 w-full">
+      <div class="w-20 h-20 rounded-full bg-white border border-edge flex items-center justify-center text-3xl mb-4 shadow-sm">
+        📐
+      </div>
+      <h4 class="font-bold text-lg text-fg mb-1">맞춤 전략 수립</h4>
+      <p class="text-xs text-muted break-keep">최적의 채널 믹스<br>제안 (네이버/인스타)</p>
+    </div>
+
+    <div class="process-connector hidden sm:flex justify-center items-center mt-9">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </div>
+
+    <div class="process-step flex flex-col items-center text-center z-10 w-full">
+      <div class="w-20 h-20 rounded-full bg-white border border-edge flex items-center justify-center text-3xl mb-4 shadow-sm">
+        🚀
+      </div>
+      <h4 class="font-bold text-lg text-fg mb-1">마케팅 실행</h4>
+      <p class="text-xs text-muted break-keep">콘텐츠 기획부터<br>광고 집행까지 직접</p>
+    </div>
+
+    <div class="process-connector hidden sm:flex justify-center items-center mt-9">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </div>
+
+    <div class="process-step flex flex-col items-center text-center z-10 w-full">
+      <div class="w-20 h-20 rounded-full bg-white border border-edge flex items-center justify-center text-3xl mb-4 shadow-sm">
+        📈
+      </div>
+      <h4 class="font-bold text-lg text-fg mb-1">성과 보고</h4>
+      <p class="text-xs text-muted break-keep">데이터 공유 및<br>지속적 최적화</p>
+    </div>
+
+  </div>
+</div>
+
+
+
+
+<div class="sm:col-span-2 glass-card border border-edge hover:border-brand-secondary transition-colors p-6 sm:p-10">
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-8 items-center">
+    <div class="readable">
+      <h2 class="text-2xl font-bold text-fg mb-4">숫자로 증명하는 신뢰</h2>
+      <ul class="space-y-3 text-muted">
+        <li class="flex items-center gap-2">
+          <span class="text-brand-primary">✔</span> 팀 내 현직 뷰티샵 운영자 보유
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="text-brand-primary">✔</span> 다수 마케팅 대행사 기술 제휴 (B2B)
+        </li>
+        <li class="flex items-center gap-2">
+          <span class="text-brand-primary">✔</span> 초기 계약 후 이탈 없는 장기 파트너 다수
+        </li>
+      </ul>
+    </div>
+    <div class="bg-soft p-5 rounded-xl border border-edge" x-data>
+      <div class="readable mb-3">
+        <h3 class="font-bold text-fg text-sm">공식 채널 바로가기</h3>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <template x-for="link in window.CONFIG.links" :key="link.key">
+          <a :href="link.url" target="_blank" class="px-4 py-2 rounded-lg bg-surface border border-edge text-sm font-medium text-fg hover:text-brand-primary transition-colors flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-brand-primary"></span>
+            <span x-text="link.label"></span>
+          </a>
+        </template>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sm:col-span-2 glass-card border border-edge hover:border-brand-secondary transition-colors p-6 sm:p-10 relative overflow-hidden">
+  
+  <div class="readable mb-12 relative z-30 text-center sm:text-left">
+    <span class="text-brand-primary font-bold tracking-wider text-sm">GROWTH RECORD</span>
+    <h2 class="text-3xl sm:text-4xl font-extrabold text-fg mt-2 leading-tight">
+      매달 성장하는 <span class="text-brand-primary"><br>클라이언트</span>
+    </h2>
+    <p class="text-muted mt-3 text-lg">
+      원장님들과 함께 만들어낸 <br> 실제 매출 상승 기록입니다.
+    </p>
+  </div>
+
+  <div class="relative h-64 w-full max-w-4xl mx-auto mt-8 flex items-end justify-between gap-2 sm:gap-6 px-2 sm:px-4 z-10 pb-6">
+    
+    <div class="absolute inset-0 flex flex-col justify-between text-xs text-slate-300 opacity-30 pointer-events-none pb-14">
+      <div class="border-b border-slate-200 w-full"></div>
+      <div class="border-b border-slate-200 w-full"></div>
+      <div class="border-b border-slate-200 w-full"></div>
+      <div class="border-b border-slate-200 w-full"></div>
+    </div>
+
+    <div class="flex flex-col items-center flex-1 z-10 h-full justify-end group">
+      <div class="mb-2 opacity-0 transition-opacity duration-500 chart-label text-center">
+        <span class="block text-xs text-slate-500 mb-1">강남 A</span>
+        <span class="text-sm font-bold text-brand-primary">+300만</span>
+      </div>
+      <div class="chart-bar w-14 mx-auto rounded-t-md bg-brand-primary/80 opacity-90 shadow-lg" data-height="30%"></div>
+    </div>
+
+    <div class="flex flex-col items-center flex-1 z-10 h-full justify-end group">
+      <div class="mb-2 opacity-0 transition-opacity duration-500 chart-label text-center">
+        <span class="block text-xs text-slate-500 mb-1">청주 B</span>
+        <span class="text-sm font-bold text-brand-primary">+1,000만</span>
+      </div>
+      <div class="chart-bar w-14 mx-auto rounded-t-md bg-brand-primary/80 opacity-90 shadow-lg" data-height="90%"></div>
+    </div>
+
+    <div class="flex flex-col items-center flex-1 z-10 h-full justify-end group">
+      <div class="mb-2 opacity-0 transition-opacity duration-500 chart-label text-center">
+        <span class="block text-xs text-slate-500 mb-1">부산 C</span>
+        <span class="text-sm font-bold text-brand-primary">+200만</span>
+      </div>
+      <div class="chart-bar w-14 mx-auto rounded-t-md bg-brand-primary/80 opacity-90 shadow-lg" data-height="20%"></div>
+    </div>
+
+    <div class="flex flex-col items-center flex-1 z-10 h-full justify-end group">
+      <div class="mb-2 opacity-0 transition-opacity duration-500 chart-label text-center">
+        <span class="block text-xs text-slate-500 mb-1">광주 D</span>
+        <span class="text-sm font-bold text-brand-primary">+400만</span>
+      </div>
+      <div class="chart-bar w-14 mx-auto rounded-t-md bg-brand-primary/80 opacity-90 shadow-lg" data-height="40%"></div>
+    </div>
+
+    <div class="flex flex-col items-center flex-1 z-10 h-full justify-end group">
+      <div class="mb-2 opacity-0 transition-opacity duration-500 chart-label text-center">
+        <span class="block text-xs text-slate-500 mb-1">인천 E</span>
+        <span class="text-sm font-bold text-brand-primary">+700만</span>
+      </div>
+      <div class="chart-bar w-14 mx-auto rounded-t-md bg-brand-primary/80 opacity-90 shadow-lg" data-height="65%"></div>
+    </div>
+
+</div>
+
+
+
+
+<div class="sm:col-span-2 glass-card border border-edge hover:border-brand-secondary transition-colors p-6 bg-soft">
+  <div class="readable text-center mb-6">
+    <h2 class="text-2xl font-bold text-fg">원장님들의 리얼 후기</h2>
+    <p class="text-muted">실제 샵을 운영하는 탬블이라 말이 통합니다.</p>
+  </div>
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div class="bg-surface p-5 rounded-xl border border-edge relative">
+      <div class="readable">
+        <p class="text-muted text-sm mb-4">"다른 대행사는 말귀를 못 알아들어서 힘들었는데, 탬블은 척하면 척이라 너무 편해요. 시술 용어를 다 아시더라고요."</p>
+        <p class="font-bold text-fg text-xs">- 강남 H 네일 원장님</p>
+      </div>
+    </div>
+    <div class="bg-surface p-5 rounded-xl border border-edge relative">
+      <div class="readable">
+        <p class="text-muted text-sm mb-4">"마케팅 대행사들도 의뢰하는 곳이라 믿고 맡겼더니, 플레이스 순위와 문의량이 확실히 달라졌습니다."</p>
+        <p class="font-bold text-fg text-xs">- 홍대 S 미용실 대표님</p>
+      </div>
+    </div>
+    <div class="bg-surface p-5 rounded-xl border border-edge relative">
+      <div class="readable">
+        <p class="text-muted text-sm mb-4">"직접 샵을 운영해 보신 분들이라 그런지, 이벤트 기획부터가 달랐습니다. 고객 반응이 바로 오네요."</p>
+        <p class="font-bold text-fg text-xs">- 분당 E 에스테틱 원장님</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sm:col-span-2 glass-card border border-edge hover:border-brand-secondary transition-colors p-6 sm:p-10">
+  <div class="readable mb-6">
+    <h2 class="text-2xl font-bold text-fg">우리 매장, 혹시 이런 상태인가요?</h2>
+  </div>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <ul class="space-y-3">
+      <li class="flex items-start gap-3 p-3 bg-soft rounded-lg">
+        <span class="text-red-500 font-bold">X</span>
+        <span class="text-sm text-muted">블로그 글은 많은데 예약 문의는 없다.</span>
+      </li>
+      <li class="flex items-start gap-3 p-3 bg-soft rounded-lg">
+        <span class="text-red-500 font-bold">X</span>
+        <span class="text-sm text-muted">플레이스 순위가 계속 떨어진다.</span>
+      </li>
+    </ul>
+    <ul class="space-y-3">
+      <li class="flex items-start gap-3 p-3 bg-soft rounded-lg">
+        <span class="text-red-500 font-bold">X</span>
+        <span class="text-sm text-muted">광고비만 나가고 효과 분석이 안 된다.</span>
+      </li>
+      <li class="flex items-start gap-3 p-3 bg-soft rounded-lg">
+        <span class="text-brand-primary font-bold">O</span>
+        <span class="text-sm text-fg font-bold">지금 바로 탬블의 진단이 필요합니다.</span>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="sm:col-span-2 glass-card border border-edge hover:border-brand-secondary transition-colors p-6">
+  <div class="readable text-center mb-6">
+    <h2 class="text-2xl font-bold text-fg">왜 탬블이어야 할까요?</h2>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm text-left">
+      <thead class="bg-soft text-fg font-bold">
+        <tr>
+          <th class="p-3 rounded-tl-lg">구분</th>
+          <th class="p-3">일반 대행사</th>
+          <th class="p-3 text-brand-primary rounded-tr-lg">탬블 (Tamble)</th>
+        </tr>
+      </thead>
+      <tbody class="text-muted">
+        <tr class="border-b border-edge">
+          <td class="p-3 font-medium text-fg">업종 이해도</td>
+          <td class="p-3">낮음 (단순 배포)</td>
+          <td class="p-3 text-brand-primary font-bold">최상 (현직 운영)</td>
+        </tr>
+        <tr class="border-b border-edge">
+          <td class="p-3 font-medium text-fg">실행 방식</td>
+          <td class="p-3">외주 (재대행)</td>
+          <td class="p-3 text-brand-primary font-bold">100% 직접 실행</td>
+        </tr>
+        <tr>
+          <td class="p-3 font-medium text-fg">소통 속도</td>
+          <td class="p-3">느림 (전달자 거침)</td>
+          <td class="p-3 text-brand-primary font-bold">빠름 (실무자 직통)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="faq" class="anchor-offset sm:col-span-2 glass-card border border-edge hover:border-brand-secondary transition-colors p-6" x-data="{ active: null }">
+  <div class="readable mb-6">
+    <h2 class="text-2xl font-bold text-fg">자주 묻는 질문</h2>
+  </div>
+  <div class="space-y-2">
+    <div class="border border-edge rounded-lg bg-surface">
+      <button @click="active === 1 ? active = null : active = 1" class="w-full flex justify-between items-center p-4 text-left font-medium text-fg hover:bg-soft transition-colors rounded-lg">
+        <span>Q. 다른 마케팅 대행사와 무엇이 다른가요?</span>
+        <span x-text="active === 1 ? '−' : '+'" class="text-xl"></span>
+      </button>
+      <div x-show="active === 1" class="p-4 pt-0 text-sm text-muted border-edge mt-2" x-collapse>
+        저희는 마케팅 기술뿐만 아니라 '뷰티샵 운영'을 압니다. 팀원이 실제 샵을 운영하며 얻은 노하우를 적용하고, 외주 없이 직접 기술을 실행하여 거품 없는 고효율 마케팅을 제공합니다.
+      </div>
+    </div>
+    <div class="border border-edge rounded-lg bg-surface">
+      <button @click="active === 2 ? active = null : active = 2" class="w-full flex justify-between items-center p-4 text-left font-medium text-fg hover:bg-soft transition-colors rounded-lg">
+        <span>Q. 어떤 채널을 진행하나요?</span>
+        <span x-text="active === 2 ? '−' : '+'" class="text-xl"></span>
+      </button>
+      <div x-show="active === 2" class="p-4 pt-0 text-sm text-muted border-edge mt-2" x-collapse>
+        네이버 플레이스, 블로그, 인스타그램, 구글 등 원장님의 매장 상황과 타겟 고객에게 가장 효과적인 채널을 복합적으로 진단하여 믹스 운영합니다.
+      </div>
+    </div>
+    <div class="border border-edge rounded-lg bg-surface">
+      <button @click="active === 3 ? active = null : active = 3" class="w-full flex justify-between items-center p-4 text-left font-medium text-fg hover:bg-soft transition-colors rounded-lg">
+        <span>Q. 대행사들도 탬블에 의뢰하나요?</span>
+        <span x-text="active === 3 ? '−' : '+'" class="text-xl"></span>
+      </button>
+      <div x-show="active === 3" class="p-4 pt-0 text-sm text-muted border-edge mt-2" x-collapse>
+        네, 맞습니다. 기술적인 실행이 어려운 대행사들이 저희에게 작업을 의뢰합니다. 원장님은 중간 단계 없이 '원청'인 탬블과 직접 소통하시게 됩니다.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="form" class="anchor-offset sm:col-span-2 glass-card border border-edge hover:border-brand-secondary transition-colors p-6 sm:p-10 bg-soft" x-data="contactForm()">
+  <div class="readable mb-6 text-center">
+    <h2 class="text-2xl sm:text-3xl font-bold text-fg mb-2">무료 진단 & 견적 문의</h2>
+    <p class="text-muted">매출 성장의 기회, 지금 확인해보세요.</p>
+  </div>
+  
+  <form @submit.prevent="submit" class="space-y-4 max-w-lg mx-auto">
+    <div>
+      <label class="block text-sm font-medium text-muted mb-1">상호명 / 성함</label>
+      <input type="text" x-model="formData.name" required class="w-full p-3 rounded-lg bg-input border border-edge text-fg focus:border-brand-primary focus:outline-none transition-colors" placeholder="예: 탬블뷰티 / 홍길동">
+    </div>
+    
+    <div>
+      <label class="block text-sm font-medium text-muted mb-1">연락처</label>
+      <input type="tel" x-model="formData.phone" required class="w-full p-3 rounded-lg bg-input border border-edge text-fg focus:border-brand-primary focus:outline-none transition-colors" placeholder="010-0000-0000">
+    </div>
+    
+    <div>
+      <label class="block text-sm font-medium text-muted mb-1">업종 구분</label>
+      <select x-model="formData.type" class="w-full p-3 rounded-lg bg-input border border-edge text-fg focus:border-brand-primary focus:outline-none transition-colors">
+        <option value="미용실">미용실</option>
+        <option value="네일/속눈썹">네일/속눈썹</option>
+        <option value="에스테틱/피부">에스테틱/피부</option>
+        <option value="왁싱/반영구">왁싱/반영구</option>
+        <option value="기타">기타</option>
+      </select>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium text-muted mb-1">문의 내용 (고민사항)</label>
+      <textarea x-model="formData.summary" rows="3" class="w-full p-3 rounded-lg bg-input border border-edge text-fg focus:border-brand-primary focus:outline-none transition-colors" placeholder="예: 플레이스 순위가 안올라요 / 신규 문의가 없어요"></textarea>
+    </div>
+
+    <button type="submit" :disabled="loading" class="w-full py-4 rounded-xl bg-brand-primary text-white font-bold text-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
+      <span x-show="!loading">문의 접수하기</span>
+      <span x-show="loading">전송 중...</span>
+    </button>
+    
+    <p class="text-xs text-center text-subtle mt-2">
+      보내주신 정보는 상담 목적으로만 활용됩니다.
+    </p>
+  </form>
+</div>
+
+<div class="sm:col-span-2 py-8 text-center border-t border-edge mt-4">
+  <div class="readable">
+    <p class="text-fg font-bold text-lg mb-2">탬블 (Tamble)</p>
+    <p class="text-sm text-subtle">
+      뷰티 전문 마케팅 솔루션 | 대표: 탬블팀<br>
+      고객센터: <a :href="'tel:' + window.CONFIG.contact.phone" x-text="window.CONFIG.contact.phone" class="hover:underline"></a><br>
+      이메일: contact@tamble.kr
+    </p>
+    <p class="text-xs text-subtle mt-4 opacity-60">
+      © 2024 Tamble. All rights reserved.
+    </p>
+  </div>
+</div>
+    </div>
+ 
+    <!-- =======================================================
+	[3] FIXED BAR: 전화/카톡 고정
+        ======================================================== -->
+    <!-- [3] FIXED BAR (PASTE OUTSIDE #lego-board) -->
+<div class="fixed bottom-0 left-0 w-full z-50 border-t border-edge bg-surface/90 backdrop-blur-md pb-safe">
+  <div class="w-full max-w-3xl mx-auto flex gap-3 p-3">
+    <a href="tel:01011112222" class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-white border border-gray-200 text-black font-bold text-lg shadow-sm hover:bg-gray-50 transition-colors">
+      <span>📞 전화 문의</span>
+    </a>
+    <a href="https://openkakaotalk.com/1234" target="_blank" class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[#FAE100] text-[#371D1E] font-bold text-lg shadow-sm hover:opacity-90 transition-opacity">
+      <span>💬 카톡 상담</span>
+    </a>
+  </div>
+</div>
+
+ 
+ 
+  </main>
+ 
+  <!-- =======================================================
+  [4] FORM LOGIC: contactForm() 정의 (⚠️ #lego-board 밖)
+  - x-data="contactForm()"이 있으니 함수가 필요함
+  - 이 script도 #lego-board 안에 넣으면 레이아웃 망가짐
+  ======================================================== -->
+<script>
+  function contactForm() {
+    return {
+      loading: false,
+      formData: {
+        name: '',
+        phone: '',
+        type: '미용실',
+        summary: ''
+      },
+      submit() {
+        // 1. CONFIG가 제대로 로드되었는지 확인
+        if (!window.CONFIG || !window.CONFIG.scriptUrl) {
+          alert("설정 오류: window.CONFIG가 로드되지 않았거나 URL이 없습니다.");
+          return;
+        }
+
+        const scriptUrl = window.CONFIG.scriptUrl;
+
+        // 2. 구글 스크립트 URL 형식 체크
+        if (!scriptUrl.includes('script.google.com/macros/s/')) {
+           alert("유효하지 않은 Apps Script URL입니다.");
+           return;
+        }
+
+        this.loading = true;
+
+        // 3. 전송 데이터 준비
+        const payload = new URLSearchParams({
+          timestamp: new Date().toISOString(),
+          name: this.formData.name,
+          phone: this.formData.phone,
+          type: this.formData.type,
+          summary: this.formData.summary
+        });
+
+        // 4. 전송 (no-cors 모드)
+        fetch(scriptUrl, {
+          method: 'POST',
+          mode: 'no-cors', // 보안 검사 무시 (핵심)
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: payload
+        })
+        .then(() => {
+          // no-cors는 성공 여부를 알려주지 않으므로, 에러가 안 나면 성공으로 간주
+          alert("문의가 성공적으로 접수되었습니다!");
+          this.formData = { name: '', phone: '', type: '미용실', summary: '' }; // 입력창 초기화
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          alert("접수 중 오류가 발생했습니다.");
+        })
+        .finally(() => {
+          this.loading = false;
+        });
+      }
+    }
+  }
+</script>
+
+
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const board = document.getElementById('lego-board');
+    if (!board) return;
+
+    // 1. 레고 보드 안의 모든 카드 찾기
+    const cards = board.querySelectorAll(':scope > div');
+
+    if (cards.length > 0) {
+      // [핵심 수정] 마우스와 터치 움직임을 모두 처리하는 함수 하나로 통합
+      function updateSpotlight(e) {
+        let clientX, clientY;
+
+        // 터치 이벤트인지 확인
+        if (e.touches && e.touches.length > 0) {
+          clientX = e.touches[0].clientX;
+          clientY = e.touches[0].clientY;
+        } else {
+          // 마우스 이벤트
+          clientX = e.clientX;
+          clientY = e.clientY;
+        }
+
+        cards.forEach((card) => {
+          // 2. CSS 효과를 위한 클래스 강제 주입
+          if (!card.classList.contains('spotlight-card')) {
+            card.classList.add('spotlight-card');
+          }
+
+          // 3. 카드 내 좌표 계산
+          const rect = card.getBoundingClientRect();
+          const x = clientX - rect.left;
+          const y = clientY - rect.top;
+
+          card.style.setProperty("--mouse-x", `${x}px`);
+          card.style.setProperty("--mouse-y", `${y}px`);
+        });
+      }
+
+      // 마우스 움직임 감지
+      document.addEventListener("mousemove", updateSpotlight);
+      // 터치 움직임 감지 (스크롤 성능 저하 방지 위해 passive: true 적용)
+      document.addEventListener("touchmove", updateSpotlight, { passive: true });
+    }
+  });
+</script>
+
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('reveal');
+            observer.unobserve(entry.target);
+          }
+        });
+      });
+      // 보드 안의 카드들을 감시 대상에 추가
+      document.querySelectorAll('#lego-board > div').forEach((el) => observer.observe(el));
+    });
+  </script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const cards = document.querySelectorAll('.sequence-card');
+    let currentIndex = 0;
+
+    // 카드가 존재할 때만 실행
+    if (cards.length > 0) {
+      // 1. 처음에 0번 카드 켜기
+      cards[0].classList.add('active');
+
+      // 2. 2초마다 다음 카드로 넘기기
+      setInterval(() => {
+        // 현재 카드 끄기
+        cards[currentIndex].classList.remove('active');
+        
+        // 다음 번호로 이동 (3번 넘어가면 다시 0번으로)
+        currentIndex = (currentIndex + 1) % cards.length;
+        
+        // 다음 카드 켜기
+        cards[currentIndex].classList.add('active');
+      }, 2000); // 2000 = 2초 속도 (원하는대로 조절 가능)
+    }
+  });
+</script>
+
+ // 전체 애니메이션 순서를 배열  // 
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    // 단계(Step)와 연결선(Connector)을 모두 가져옵니다.
+    const steps = document.querySelectorAll('.process-step');
+    const connectors = document.querySelectorAll('.process-connector');
+    
+    // 전체 애니메이션 순서를 배열로 만듭니다. (단계1 -> 연결1 -> 단계2 -> 연결2 ...)
+    let sequence = [];
+    steps.forEach((step, index) => {
+        sequence.push(step);
+        if (connectors[index]) {
+            sequence.push(connectors[index]);
+        }
+    });
+
+    let seqIndex = 0;
+
+    if (sequence.length > 0) {
+      setInterval(() => {
+        // 끝까지 갔으면 초기화 (무한반복)
+        if (seqIndex >= sequence.length) {
+            sequence.forEach(el => el.classList.remove('active'));
+            seqIndex = 0;
+            return;
+        }
+
+        // 하나씩 켜기
+        sequence[seqIndex].classList.add('active');
+        seqIndex++;
+
+      }, 700); // 0.7초 속도
+    }
+  });
+</script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const bars = document.querySelectorAll('.chart-bar');
+    const labels = document.querySelectorAll('.chart-label');
+
+    function runGraphAnimation() {
+      // 1. 초기화 (높이 0, 라벨 숨김, 반짝임 제거)
+      bars.forEach(b => {
+        b.style.height = '0';
+        b.classList.remove('shimmer'); // 반짝임 끄기
+        // 기본 색상 유지 (shimmer가 덮어씌울 수 있으므로)
+      });
+      labels.forEach(l => l.style.opacity = '0');
+
+      let delay = 200; 
+
+      // 2. 순서대로 올라가기
+      bars.forEach((bar, index) => {
+        setTimeout(() => {
+          // 높이 성장
+          bar.style.height = bar.dataset.height;
+          // 라벨 등장
+          labels[index].style.opacity = '1';
+          
+          // 3. 성장이 끝나는 시점(0.8초 뒤)에 반짝임 효과 켜기
+          setTimeout(() => {
+             bar.classList.add('shimmer');
+          }, 800); 
+
+        }, delay);
+        
+        // 다음 막대는 0.4초 뒤에 출발
+        delay += 400; 
+      });
+
+      // 4. 무한 반복 (6초 뒤 리셋 후 재실행)
+      setTimeout(runGraphAnimation, 6000);
+    }
+
+    // 시작
+    setTimeout(runGraphAnimation, 500); 
+  });
+</script>
+
+
+
+</body>
+</html>
+
